@@ -11,8 +11,8 @@ julia_setup()
 julia_command(paste0("include(\"", getwd(), "/functions.jl\")"))
 
 # Get possible age allocations for each scenario
-df_age_comb_s1 <- read.csv("../data/df_age_comb_s1.csv")
-df_age_comb_s2 <- read.csv("../data/df_age_comb_s2.csv")
+df_age_comb_s1 <- read.csv("./data/df_age_comb_s1.csv")
+df_age_comb_s2 <- read.csv("./data/df_age_comb_s2.csv")
 
 # Functions in R ----
 
