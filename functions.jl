@@ -1,4 +1,4 @@
-using Distributions, DataFrames, GLM, JLD2, Random, Optim, CSV
+using Distributions, DataFrames, JLD2, Random, Optim
 
 # Scenario 1
 # Generate data sets based on age structures
@@ -38,18 +38,11 @@ end
 # Get log-likelihood of RCM estimating lambda and rho 
 function get_ll_t1_par2(params, age, y)
     l1, rho = params
-
-    penalty = 0.0
-    if l1 < 0 || l1 > 1 || rho < 0 || rho > 0.1
-        penalty += 1e10
-    end
-    
     ϵ = 1e-10  
     p = get_sero_positivity_1l.(age, l1, rho)
     p = clamp.(p, ϵ, 1 - ϵ)
     ll = -sum(y .* log.(p) .+ (1 .- y) .* log.(1 .- p))
-
-    return ll + penalty
+    return ll
 end
 
 function get_res_s1_par1(n, p_age1, p_age2, p_age3, p_age4, lambda, rho)
@@ -61,7 +54,7 @@ function get_res_s1_par1(n, p_age1, p_age2, p_age3, p_age4, lambda, rho)
     # Parameter estimation by MLE
     ## estimate only lambda
     obj(x) = get_ll_t1_par1(x, rho, df.age, df.y_sp)
-    res_par1   = optimize(obj, 0.0, 10.0, Brent())
+    res_par1   = optimize(obj, 0.0, 1.0, Brent())
     est_l = Optim.minimizer(res_par1)
 
     df_res = DataFrame(
@@ -77,15 +70,19 @@ function get_res_s1_par2(n, p_age1, p_age2, p_age3, p_age4, lambda, rho)
     df.y_sp = [rand(Binomial(1, get_sero_positivity_1l(age, lambda, rho))) for age in df.age]
 
     # Parameter estimation by MLE
-    ## estimate lambda and rho
-    res_par2 = optimize(p -> get_ll_t1_par2(p, df.age, df.y_sp),
-                           [0.1, 0.1], NelderMead())
+    ## estimate lambda and rho                           
+    res_par2 = optimize(
+        p -> get_ll_t1_par2(p, df.age, df.y_sp),
+        [0.0, 0.0],
+        [1.0, 0.1],
+        [0.1, 0.02],
+        Fminbox(NelderMead())
+    )
     est_l, est_r = Optim.minimizer(res_par2)
 
     df_res = DataFrame(
         est_l = est_l
     )
-
     return df_res
 end
 
@@ -122,78 +119,60 @@ function get_sero_positivity_2l(age::Real, l1, l2, rho, tau)
 end
 
 # Get log likelihood of RCM-scSCR estimating lambdas only
-
 function get_ll_t2_par2(params, rho, age, y, tau)
-    l1, l2 = params
-
-    penalty = 0.0
-    if l1 < 0 || l1 > 1 || l2 < 0 || l2 > 1
-        penalty += 1e10
-    end
-    
+    l1, l2 = params    
     ϵ = 1e-10  
     p = get_sero_positivity_2l.(age, l1, l2, rho, tau)
     p = clamp.(p, ϵ, 1 - ϵ)
     ll = -sum(y .* log.(p) + (1 .- y) .* log.(1 .- p))
-
-    return ll + penalty
+    return ll
 end
 
 # Get log likelihood of RCM-scSCR estimating lambdas only
-
 function get_ll_t2_par3(params, age, y, tau)
-    l1, l2, rho = params
-
-    penalty = 0.0
-    if l1 < 0 || l1 > 1 || l2 < 0 || l2 > 1 || rho < 0 || rho > 0.1
-        penalty += 1e10
-    end
-    
+    l1, l2, rho = params    
     ϵ = 1e-10  
     p = get_sero_positivity_2l.(age, l1, l2, rho, tau)
     p = clamp.(p, ϵ, 1 - ϵ)
     ll = -sum(y .* log.(p) .+ (1 .- y) .* log.(1 .- p))
-
-    return ll + penalty
+    return ll
 end
 
 function get_res_s2_par2(n, p_age1, p_age2, p_age3, p_age4, l1, l2, rho, tau)
-
     # Simulate dataset
     df = get_age_s2(n, tau, p_age1, p_age2, p_age3, p_age4)
     df.y_sp = [rand(Binomial(1, get_sero_positivity_2l(age, l1, l2, rho, tau))) for age in df.age]
     
     # MLE using RCM-scSCR with known SRR
-    res_t2_par2 = optimize(p -> get_ll_t2_par2(p, rho, df.age, df.y_sp, tau),
-                           [0.1, 0.1], NelderMead())
+    res_t2_par2 = optimize(
+        p -> get_ll_t2_par2(p, rho, df.age, df.y_sp, tau),
+        [0.0, 0.0], [1.0, 1.0], [0.01, 0.001], Fminbox(NelderMead())
+    )
     est_l1_2param, est_l2_2param = Optim.minimizer(res_t2_par2)
-
     df_res = DataFrame(
         tau = tau,
         est_l1 = est_l1_2param,
         est_l2 = est_l2_2param,
         )
-
     return df_res
 end
 
 function get_res_s2_par3(n, p_age1, p_age2, p_age3, p_age4, l1, l2, rho, tau)
-
     # Simulate dataset
     df = get_age_s2(n, tau, p_age1, p_age2, p_age3, p_age4)
     df.y_sp = [rand(Binomial(1, get_sero_positivity_2l(age, l1, l2, rho, tau))) for age in df.age]
 
-    # MLE using RCM-scSCR with unknown SRR
-    res_t2_par3 = optimize(p -> get_ll_t2_par3(p, df.age, df.y_sp, tau),
-                           [0.1, 0.1, 0.1], NelderMead())
+    # MLE using RCM-scSCR with unknown SRR                           
+     res_t2_par3 = optimize(
+        p -> get_ll_t2_par3(p, df.age, df.y_sp, tau),
+        [0.0, 0.0, 0.0], [1.0, 1.0, 0.1], [0.01, 0.001, 0.02], Fminbox(NelderMead())
+    )
     est_l1_3param, est_l2_3param, est_rho_3param = Optim.minimizer(res_t2_par3)
-
      df_res = DataFrame(
         tau = tau,
         est_l1 = est_l1_3param,
         est_l2 = est_l2_3param,
         )
-
     return df_res
 end
 
