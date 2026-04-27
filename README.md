@@ -60,5 +60,5 @@ For the Change in SCR scenario,
 - Change point (Years)
 - Estimating parameter (SCRs only, SCRs and SRR)<br>
 <br>
-After setting all parameters, click “Run” to start the simulation. Once the simulation is complete, you will obtain the the 95%CI for the SCR(s) along with the age-based sampling structures that yield the highest and lowest precision.
+After setting all parameters, click “Run” to start the simulation. Once the simulation is complete, you will obtain the the 95% intervals for the estimated SCR(s) along with the age-based sampling structures that yield the highest and lowest precision.
 
